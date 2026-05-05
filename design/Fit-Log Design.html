@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fit-Log — OOTD 카메라 앱 디자인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif; }
+  body { background: #1A1816; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="tokens.js"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="primitives.jsx"></script>
+<script type="text/babel" src="phone.jsx"></script>
+<script type="text/babel" src="screens-1.jsx"></script>
+<script type="text/babel" src="screens-2.jsx"></script>
+<script type="text/babel" src="screens-tokens.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function App() {
+  // Tweaks state
+  const TWEAKS = /*EDITMODE-BEGIN*/{
+    "accentHue": 35,
+    "accentChroma": 0.09,
+    "rounding": "soft",
+    "showTutorial": false
+  }/*EDITMODE-END*/;
+  const [tw, setTw] = window.useTweaks ? window.useTweaks(TWEAKS) : [TWEAKS, () => {}];
+
+  // Override accent based on hue/chroma
+  useEffect(() => {
+    const h = tw.accentHue, ch = tw.accentChroma;
+    const tokenLight = window.FL_TOKENS.light;
+    const tokenDark = window.FL_TOKENS.dark;
+    const baseL = `oklch(0.62 ${ch} ${h})`;
+    const hiL  = `oklch(0.70 ${ch} ${h})`;
+    const loL  = `oklch(0.52 ${ch} ${h})`;
+    tokenLight["accent.brand"] = baseL;
+    tokenLight["accent.brandHi"] = hiL;
+    tokenLight["accent.brandLo"] = loL;
+    tokenDark["accent.brand"] = `oklch(0.68 ${ch} ${h})`;
+    tokenDark["accent.brandHi"] = `oklch(0.76 ${ch} ${h})`;
+    tokenDark["accent.brandLo"] = `oklch(0.58 ${ch} ${h})`;
+  }, [tw.accentHue, tw.accentChroma]);
+
+  const TP = window.TweaksPanel;
+  const TS = window.TweakSection;
+  const Slider = window.TweakSlider;
+  const Radio = window.TweakRadio;
+  const Toggle = window.TweakToggle;
+
+  // Screen wrapper at fixed 390x844 — pure rounded rectangle (no bezel)
+  const PS = (props) => <window.PhoneScreen {...props}/>;
+
+  return (
+    <>
+      <window.DesignCanvas
+        title="Fit-Log"
+        subtitle="OOTD 카메라 앱 · 8 화면 × 라이트/다크 + 디자인 토큰"
+      >
+        {/* ──────── 01 Library / Home ──────── */}
+        <window.DCSection id="library" title="01 · 라이브러리 (홈)">
+          <window.DCArtboard id="lib-empty-light" label="빈 상태 — Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Home dark={false} state="empty"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lib-filled-light" label="데이터 있음 — Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Home dark={false} state="filled"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lib-select-light" label="다중 선택 — Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Home dark={false} state="selecting"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lib-empty-dark" label="빈 상태 — Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Home dark={true} state="empty"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lib-filled-dark" label="데이터 있음 — Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Home dark={true} state="filled"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lib-select-dark" label="다중 선택 — Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Home dark={true} state="selecting"/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── 02 Camera Split ──────── */}
+        <window.DCSection id="camera-split" title="02 · 카메라 — 분할 모드">
+          <window.DCArtboard id="split-default" label="기본 (좌측 레퍼런스)" width={390} height={844}>
+            <PS><window.Screen_CameraSplit refLeft={true}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="split-swap" label="좌우 전환" width={390} height={844}>
+            <PS><window.Screen_CameraSplit refLeft={false}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="split-tutorial" label="튜토리얼 오버레이" width={390} height={844}>
+            <PS><window.Screen_CameraSplit refLeft={true} showTutorial={true}/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── 03 Camera Overlay ──────── */}
+        <window.DCSection id="camera-overlay" title="03 · 카메라 — 오버레이 모드">
+          <window.DCArtboard id="overlay-low" label="투명도 25%" width={390} height={844}>
+            <PS><window.Screen_CameraOverlay opacity={25}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="overlay-mid" label="투명도 50%" width={390} height={844}>
+            <PS><window.Screen_CameraOverlay opacity={50}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="overlay-high" label="투명도 80%" width={390} height={844}>
+            <PS><window.Screen_CameraOverlay opacity={80}/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── 04 Reference Picker ──────── */}
+        <window.DCSection id="ref-picker" title="04 · 레퍼런스 사진 선택 시트">
+          <window.DCArtboard id="ref-light" label="Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_RefPicker dark={false}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="ref-dark" label="Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_RefPicker dark={true}/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── 05 Photo Viewer ──────── */}
+        <window.DCSection id="viewer" title="05 · 사진 상세 / 뷰어">
+          <window.DCArtboard id="viewer-1" label="기본 보기" width={390} height={844}>
+            <PS><window.Screen_Viewer dark={false} photoId={4}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="viewer-2" label="다른 사진" width={390} height={844}>
+            <PS><window.Screen_Viewer dark={false} photoId={7}/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── 06 Layout Composer ──────── */}
+        <window.DCSection id="layout" title="06 · 레이아웃 합성">
+          <window.DCArtboard id="lay-2x2-light" label="2×2 — Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Layout dark={false} layout="2x2"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lay-3x3-light" label="3×3 — Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Layout dark={false} layout="3x3"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lay-3x2-dark" label="3×2 — Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Layout dark={true} layout="3x2"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lay-4x2-dark" label="4×2 — Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Layout dark={true} layout="4x2"/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── 07 Language Sheet ──────── */}
+        <window.DCSection id="language" title="07 · 언어 선택 시트">
+          <window.DCArtboard id="lang-light" label="Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Language dark={false}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="lang-dark" label="Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Language dark={true}/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── 08 Permission Denied ──────── */}
+        <window.DCSection id="permission" title="08 · 권한 거부 빈 상태">
+          <window.DCArtboard id="perm-cam-light" label="카메라 — Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Permission dark={false} kind="camera"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="perm-photo-light" label="사진 — Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Permission dark={false} kind="photo"/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="perm-cam-dark" label="카메라 — Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Permission dark={true} kind="camera"/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── Auxiliary: Toast / Dialog ──────── */}
+        <window.DCSection id="aux" title="보조 · 토스트 + 다이얼로그">
+          <window.DCArtboard id="aux-light" label="Light" width={390} height={844}>
+            <PS dark={false}><window.Screen_Toast dark={false}/></PS>
+          </window.DCArtboard>
+          <window.DCArtboard id="aux-dark" label="Dark" width={390} height={844}>
+            <PS dark={true}><window.Screen_Toast dark={true}/></PS>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        {/* ──────── Tokens ──────── */}
+        <window.DCSection id="tokens" title="디자인 토큰 시트">
+          <window.DCArtboard id="tokens-light" label="Light Tokens" width={1140} height={1500}>
+            <window.Screen_Tokens dark={false}/>
+          </window.DCArtboard>
+          <window.DCArtboard id="tokens-dark" label="Dark Tokens" width={1140} height={1500}>
+            <window.Screen_Tokens dark={true}/>
+          </window.DCArtboard>
+        </window.DCSection>
+      </window.DesignCanvas>
+
+      {TP && (
+        <TP title="Tweaks">
+          <TS title="Accent">
+            <Slider label="Hue" value={tw.accentHue} min={0} max={360} step={1} onChange={v => setTw('accentHue', v)}/>
+            <Slider label="Chroma" value={tw.accentChroma} min={0} max={0.18} step={0.01} onChange={v => setTw('accentChroma', v)}/>
+          </TS>
+          <TS title="시각">
+            <Radio label="라운딩" value={tw.rounding} options={[{value:"sharp",label:"Sharp"},{value:"soft",label:"Soft"},{value:"pill",label:"Pill"}]} onChange={v => setTw('rounding', v)}/>
+          </TS>
+        </TP>
+      )}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

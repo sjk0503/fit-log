@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
@@ -37,7 +37,7 @@ class StorageService {
     await imageFile.copy(savedPath);
 
     // Save to device gallery
-    await ImageGallerySaver.saveFile(savedPath, name: 'FitLog_$fileName');
+    await ImageGallerySaverPlus.saveFile(savedPath, name: 'FitLog_$fileName');
 
     final photo = OotdPhoto(
       id: id,
@@ -111,7 +111,7 @@ class StorageService {
     await imageFile.copy(savedPath);
 
     // Save to device gallery
-    await ImageGallerySaver.saveFile(savedPath, name: 'FitLog_Layout_$fileName');
+    await ImageGallerySaverPlus.saveFile(savedPath, name: 'FitLog_Layout_$fileName');
 
     return File(savedPath);
   }

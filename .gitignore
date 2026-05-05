@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Auto-generated per-directory CLAUDE.md memory contexts (claude-mem plugin).
+# The repository-level CLAUDE.md at the repo root IS tracked.
+**/CLAUDE.md
+!/CLAUDE.md

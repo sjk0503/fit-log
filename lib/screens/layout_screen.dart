@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
-import '../l10n/app_localizations.dart';
+import '../design/design.dart';
 import '../models/ootd_photo.dart';
 import '../services/image_service.dart';
 import '../services/storage_service.dart';
 import '../utils/constants.dart';
-import '../widgets/layout_composer.dart';
 
 class LayoutScreen extends StatefulWidget {
   final List<OotdPhoto> initialPhotos;
@@ -27,280 +26,506 @@ class _LayoutScreenState extends State<LayoutScreen> {
 
   late List<OotdPhoto> _selectedPhotos;
   LayoutType _layoutType = LayoutType.grid2x2;
-  Color _backgroundColor = Colors.white;
+  Color _bgColor = const Color(0xFFFAF8F5);
   bool _isSaving = false;
 
-  final List<Color> _backgroundColors = [
-    Colors.white,
-    Colors.black,
-    const Color(0xFFF5F5F5),
-    const Color(0xFFE0E0E0),
-    AppColors.primary.withValues(alpha: 0.1),
+  static const _bgOptions = <Color>[
+    Color(0xFFFAF8F5),
+    Color(0xFFF4EFE8),
+    Color(0xFF1A1816),
+    Color(0xFFEBE5DC),
+    Color(0xFFC2614A),
   ];
+
+  int get _cellCount => _layoutType.rows * _layoutType.columns;
 
   @override
   void initState() {
     super.initState();
-    _selectedPhotos = List.from(widget.initialPhotos);
+    _selectedPhotos = List.of(widget.initialPhotos);
     _storageService.initialize();
   }
 
-  void _onCellTap(int index) async {
-    final photo = await _showPhotoSelector();
-    if (photo != null) {
+  Future<void> _replacePhoto(int index) async {
+    final picked = await showFLSheet<OotdPhoto>(
+      context,
+      heightFraction: 0.78,
+      builder: (ctx) => _PhotoPickerBody(photos: widget.allPhotos),
+    );
+    if (picked != null && mounted) {
       setState(() {
         if (index < _selectedPhotos.length) {
-          _selectedPhotos[index] = photo;
+          _selectedPhotos[index] = picked;
         } else {
-          while (_selectedPhotos.length < index) {
-            _selectedPhotos.add(widget.allPhotos.first);
-          }
-          _selectedPhotos.add(photo);
+          _selectedPhotos.add(picked);
         }
       });
     }
   }
 
-  Future<OotdPhoto?> _showPhotoSelector() async {
-    return showModalBottomSheet<OotdPhoto>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        final l10n = AppLocalizations.of(context);
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          minChildSize: 0.3,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) => Column(
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.textSecondary.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(AppSizes.paddingMedium),
-                child: Text(
-                  l10n.selectPhoto,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: GridView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(AppSizes.paddingSmall),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 4,
-                    mainAxisSpacing: 4,
-                  ),
-                  itemCount: widget.allPhotos.length,
-                  itemBuilder: (context, index) {
-                    final photo = widget.allPhotos[index];
-                    return GestureDetector(
-                      onTap: () => Navigator.pop(context, photo),
-                      child: Image.file(
-                        photo.file,
-                        fit: BoxFit.cover,
-                        cacheWidth: 200,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  Future<void> _addMorePhotos() async {
+    final picked = await showFLSheet<OotdPhoto>(
+      context,
+      heightFraction: 0.78,
+      builder: (ctx) => _PhotoPickerBody(photos: widget.allPhotos),
     );
+    if (picked != null && mounted) {
+      setState(() {
+        if (_selectedPhotos.length < _cellCount) {
+          _selectedPhotos.add(picked);
+        } else {
+          _selectedPhotos[_cellCount - 1] = picked;
+        }
+      });
+    }
   }
 
-  Future<void> _saveLayout() async {
-    final l10n = AppLocalizations.of(context);
+  Future<void> _save() async {
     if (_selectedPhotos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.selectAtLeastOnePhoto)),
-      );
+      FLToastHost.show(context, message: '사진을 1장 이상 선택해 주세요');
       return;
     }
-
     setState(() => _isSaving = true);
-
     try {
       final layoutImage = await _imageService.createLayoutImage(
         photos: _selectedPhotos,
         layoutType: _layoutType,
-        backgroundColor: _backgroundColor,
+        backgroundColor: _bgColor,
       );
-
       await _storageService.saveLayoutImage(layoutImage);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.layoutSavedToGallery),
-            backgroundColor: AppColors.success,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${l10n.failedToSaveLayout}: $e')),
-        );
-      }
+      if (!mounted) return;
+      FLToastHost.show(
+        context,
+        message: '레이아웃이 갤러리에 저장됐어요',
+        icon: FLIcon.check,
+      );
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      FLToastHost.show(context, message: '레이아웃 저장 실패');
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          l10n.createLayout,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _saveLayout,
-            child: _isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
-                    ),
-                  )
-                : Text(
-                    l10n.save,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
+    final t = FLTheme.of(context);
+    return ColoredBox(
+      color: t.c.bgCanvas,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 18),
+              child: Row(
+                children: [
+                  FLIconBtn(
+                    icon: FLIcon.close,
+                    tone: FLIconBtnTone.outline,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        '레이아웃 합성',
+                        style: FLType.titleSm.copyWith(
+                            color: t.c.textPrimary,
+                            letterSpacing: -0.2),
+                      ),
                     ),
                   ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Layout preview
-          Expanded(
-            child: Center(
+                  GestureDetector(
+                    onTap: _isSaving ? null : _save,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: t.c.accentBrand
+                            .withValues(alpha: _isSaving ? 0.4 : 1.0),
+                        borderRadius: BorderRadius.circular(FLRadii.full),
+                      ),
+                      child: Text(
+                        _isSaving ? '저장 중…' : '저장',
+                        style: const TextStyle(
+                          fontFamily: FLFonts.sans,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFFFFFFF),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Preview
+            Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(AppSizes.paddingLarge),
-                child: LayoutComposer(
-                  selectedPhotos: _selectedPhotos,
-                  layoutType: _layoutType,
-                  backgroundColor: _backgroundColor,
-                  onCellTap: _onCellTap,
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Center(
+                  child: _LayoutPreview(
+                    layoutType: _layoutType,
+                    bgColor: _bgColor,
+                    photos: _selectedPhotos,
+                    onCellTap: _replacePhoto,
+                  ),
                 ),
               ),
             ),
-          ),
+            // Layout chooser
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'LAYOUT',
+                    style: FLType.label.copyWith(
+                        color: t.c.textMuted, letterSpacing: 1.32),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      for (final L in LayoutType.values) ...[
+                        Expanded(
+                          child: _LayoutChip(
+                            type: L,
+                            active: L == _layoutType,
+                            onTap: () => setState(() => _layoutType = L),
+                          ),
+                        ),
+                        if (L != LayoutType.values.last)
+                          const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Background colors
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
+              child: Row(
+                children: [
+                  Text(
+                    'BG',
+                    style: FLType.label.copyWith(
+                        color: t.c.textMuted, letterSpacing: 1.32),
+                  ),
+                  const SizedBox(width: 12),
+                  for (final col in _bgOptions) ...[
+                    GestureDetector(
+                      onTap: () => setState(() => _bgColor = col),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: col,
+                          borderRadius:
+                              BorderRadius.circular(FLRadii.full),
+                          border: Border.all(
+                            color: _bgColor == col
+                                ? t.c.accentBrand
+                                : t.c.borderDefault,
+                            width: _bgColor == col ? 2 : 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+            // Counter row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 22),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: FLType.bodySm.copyWith(
+                            color: t.c.textSecondary),
+                        children: [
+                          const TextSpan(text: '선택된 사진  '),
+                          TextSpan(
+                            text:
+                                '${_selectedPhotos.length.clamp(0, _cellCount)}',
+                            style: TextStyle(
+                              fontFamily: FLFonts.mono,
+                              color: t.c.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' / $_cellCount',
+                            style: const TextStyle(
+                              fontFamily: FLFonts.mono,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  FLButton(
+                    label: '사진 추가',
+                    kind: FLButtonKind.ghost,
+                    size: FLButtonSize.sm,
+                    leadingIcon: FLIcon.plus,
+                    onPressed: _addMorePhotos,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-          // Controls
-          Container(
-            padding: const EdgeInsets.all(AppSizes.paddingMedium),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -4),
+// ─── Preview ─────────────────────────────────────────────────────────────
+
+class _LayoutPreview extends StatelessWidget {
+  final LayoutType layoutType;
+  final Color bgColor;
+  final List<OotdPhoto> photos;
+  final void Function(int index) onCellTap;
+
+  const _LayoutPreview({
+    required this.layoutType,
+    required this.bgColor,
+    required this.photos,
+    required this.onCellTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FLTheme.of(context);
+    final cells = layoutType.rows * layoutType.columns;
+    final wide = layoutType.columns >= layoutType.rows;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: wide ? 320 : 260),
+      child: AspectRatio(
+        aspectRatio: layoutType.columns / layoutType.rows,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: t.isDark ? FLShadows.darkLg : FLShadows.lightLg,
+          ),
+          child: GridView.builder(
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: layoutType.columns,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
+            itemCount: cells,
+            itemBuilder: (context, i) {
+              final hasPhoto = i < photos.length;
+              return GestureDetector(
+                onTap: () => onCellTap(i),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: hasPhoto && photos[i].exists
+                      ? Image(
+                          image: FileImage(photos[i].file),
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, __, ___) =>
+                              ColoredBox(color: t.c.bgMuted),
+                        )
+                      : Container(
+                          color: t.c.bgMuted,
+                          alignment: Alignment.center,
+                          child: FLIconView(
+                            FLIcon.plus,
+                            size: 16,
+                            color: t.c.textMuted,
+                          ),
+                        ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Layout chip ─────────────────────────────────────────────────────────
+
+class _LayoutChip extends StatelessWidget {
+  final LayoutType type;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _LayoutChip({
+    required this.type,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FLTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: active ? t.c.accentBrandFill : t.c.bgElevated,
+          border: Border.all(
+            color: active ? t.c.accentBrand : t.c.borderSubtle,
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(FLRadii.md),
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: _MiniLayout(
+                type: type,
+                color: active ? t.c.accentBrand : t.c.textMuted,
+                opacity: active ? 1.0 : 0.55,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              type.label,
+              style: FLType.label.copyWith(color: t.c.textPrimary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniLayout extends StatelessWidget {
+  final LayoutType type;
+  final Color color;
+  final double opacity;
+
+  const _MiniLayout({
+    required this.type,
+    required this.color,
+    required this.opacity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: type.columns / type.rows,
+      child: GridView.builder(
+        padding: EdgeInsets.zero,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: type.columns,
+          crossAxisSpacing: 1.5,
+          mainAxisSpacing: 1.5,
+        ),
+        itemCount: type.rows * type.columns,
+        itemBuilder: (context, _) => Container(
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: opacity),
+            borderRadius: BorderRadius.circular(1),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Photo picker sheet body ────────────────────────────────────────────
+
+class _PhotoPickerBody extends StatelessWidget {
+  final List<OotdPhoto> photos;
+  const _PhotoPickerBody({required this.photos});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FLTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 16, 22, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PHOTO',
+                        style: FLType.label.copyWith(
+                            color: t.c.textMuted,
+                            letterSpacing: 1.32),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '사진 선택',
+                        style: FLType.titleLg.copyWith(
+                            color: t.c.textPrimary,
+                            letterSpacing: -0.4),
+                      ),
+                    ],
+                  ),
+                ),
+                FLIconBtn(
+                  icon: FLIcon.close,
+                  tone: FLIconBtnTone.surface,
+                  size: 36,
+                  iconSize: 16,
+                  onPressed: () => Navigator.of(context).maybePop(),
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.layout,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+          ),
+          Flexible(
+            child: GridView.builder(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 6,
+                mainAxisSpacing: 6,
+              ),
+              itemCount: photos.length,
+              itemBuilder: (context, i) {
+                final p = photos[i];
+                return GestureDetector(
+                  onTap: () => Navigator.of(context).pop(p),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(FLRadii.sm),
+                    child: p.exists
+                        ? Image(
+                            image: FileImage(p.file),
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            errorBuilder: (_, __, ___) =>
+                                ColoredBox(color: t.c.bgMuted),
+                          )
+                        : ColoredBox(color: t.c.bgMuted),
                   ),
-                ),
-                const SizedBox(height: AppSizes.paddingSmall),
-                LayoutTypeSelector(
-                  selectedType: _layoutType,
-                  onSelected: (type) {
-                    setState(() => _layoutType = type);
-                  },
-                ),
-                const SizedBox(height: AppSizes.paddingMedium),
-                Text(
-                  l10n.background,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: AppSizes.paddingSmall),
-                Row(
-                  children: _backgroundColors.map((color) {
-                    final isSelected = color == _backgroundColor;
-                    return GestureDetector(
-                      onTap: () => setState(() => _backgroundColor = color),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primary
-                                : AppColors.textSecondary.withValues(alpha: 0.3),
-                            width: isSelected ? 2 : 1,
-                          ),
-                        ),
-                        child: isSelected
-                            ? Icon(
-                                Icons.check,
-                                size: 20,
-                                color: color == Colors.white || color == const Color(0xFFF5F5F5)
-                                    ? AppColors.primary
-                                    : Colors.white,
-                              )
-                            : null,
-                      ),
-                    );
-                  }).toList(),
-                ),
-                SizedBox(height: MediaQuery.of(context).padding.bottom),
-              ],
+                );
+              },
             ),
           ),
         ],

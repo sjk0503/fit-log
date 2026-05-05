@@ -1,38 +1,35 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' show MaterialApp;
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'design/design.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/home_screen.dart';
 import 'services/locale_service.dart';
-import 'utils/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
-
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
+      statusBarColor: Color(0x00000000),
       statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
     ),
   );
 
   await LocaleService().initialize();
-
-  runApp(const OotdApp());
+  runApp(const FitLogApp());
 }
 
-class OotdApp extends StatelessWidget {
-  const OotdApp({super.key});
+class FitLogApp extends StatelessWidget {
+  const FitLogApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     final localeService = LocaleService();
-
     return ListenableBuilder(
       listenable: localeService,
       builder: (context, _) {
@@ -47,61 +44,9 @@ class OotdApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: AppColors.primary,
-              primary: AppColors.primary,
-              secondary: AppColors.accent,
-              surface: AppColors.surface,
-              error: AppColors.error,
-            ),
-            scaffoldBackgroundColor: AppColors.background,
-            appBarTheme: const AppBarTheme(
-              backgroundColor: AppColors.surface,
-              elevation: 0,
-              centerTitle: true,
-              iconTheme: IconThemeData(color: AppColors.textPrimary),
-              titleTextStyle: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            floatingActionButtonTheme: const FloatingActionButtonThemeData(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadius),
-                ),
-              ),
-            ),
-            outlinedButtonTheme: OutlinedButtonThemeData(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadius),
-                ),
-              ),
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-              ),
-            ),
-            snackBarTheme: SnackBarThemeData(
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSizes.borderRadius),
-              ),
-            ),
-          ),
+          // The MaterialApp here is purely a routing/localization shell.
+          // All visual elements are rendered through FLTheme in the builder.
+          builder: (context, child) => FLThemeScope(child: child!),
           home: const HomeScreen(),
         );
       },
