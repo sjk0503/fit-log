@@ -76,6 +76,26 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # One-shot generator for iOS / Android launcher icons from
+  # assets/branding/icon.png. Run with: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.4
+
+# Launcher icon generation config consumed by flutter_launcher_icons.
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/branding/icon.png"
+  min_sdk_android: 26
+  adaptive_icon_background: "#C2614A"
+  adaptive_icon_foreground: "assets/branding/icon.png"
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: false
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
