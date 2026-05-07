@@ -29,7 +29,9 @@ class PermissionUtils {
     };
   }
 
-  static Future<void> openAppSettings() async {
-    await openAppSettings();
+  /// Opens the system app settings page so the user can grant denied
+  /// permissions. Wraps permission_handler's top-level openAppSettings().
+  static Future<bool> openSystemSettings() async {
+    return await openAppSettings();
   }
 }

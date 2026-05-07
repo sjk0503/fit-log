@@ -41,6 +41,12 @@ class _CameraScreenState extends State<CameraScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _referencePhoto = widget.referencePhoto;
+    // No reference yet → start in overlay mode so the user can take a
+    // free-form first shot without picking a reference. Split mode requires
+    // a reference and would otherwise show an empty placeholder side.
+    if (_referencePhoto == null) {
+      _currentMode = CameraMode.overlay;
+    }
     _initializeCamera();
   }
 
@@ -121,10 +127,20 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   void _toggleMode() {
+    final goingToSplit = _currentMode != CameraMode.split;
+    if (goingToSplit && _referencePhoto == null) {
+      // Split mode is meaningless without a reference. Open the picker first
+      // and only switch to split if the user actually picks one.
+      _selectReferencePhoto().then((_) {
+        if (!mounted) return;
+        if (_referencePhoto != null) {
+          setState(() => _currentMode = CameraMode.split);
+        }
+      });
+      return;
+    }
     setState(() {
-      _currentMode = _currentMode == CameraMode.split
-          ? CameraMode.overlay
-          : CameraMode.split;
+      _currentMode = goingToSplit ? CameraMode.split : CameraMode.overlay;
     });
   }
 
@@ -1002,23 +1018,44 @@ class _PermissionFallback extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            FLIconView(FLIcon.camera,
+            FLIconView(FLIcon.lock,
                 size: 48, color: const Color(0x66FAF8F5)),
             const SizedBox(height: 16),
+            const Text(
+              '카메라 권한이 필요해요',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: FLFonts.sans,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFFAF8F5),
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
-              errorMessage ?? '카메라 권한이 필요해요',
+              errorMessage ??
+                  '거부하셨다면 시스템 설정에서 다시 허용해 주세요. 한번 허용하면 다음부터는 묻지 않아요.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: FLFonts.sans,
-                fontSize: 14,
+                fontSize: 13,
                 color: Color(0xB3FAF8F5),
-                height: 1.5,
+                height: 1.55,
               ),
             ),
             const SizedBox(height: 24),
             FLButton(
-              label: '다시 시도',
+              label: '설정 열기',
               kind: FLButtonKind.primary,
+              fullWidth: true,
+              onPressed: () => PermissionUtils.openSystemSettings(),
+            ),
+            const SizedBox(height: 8),
+            FLButton(
+              label: '다시 시도',
+              kind: FLButtonKind.ghost,
+              fullWidth: true,
               onPressed: onRetry,
             ),
           ],

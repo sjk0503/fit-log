@@ -58,6 +58,9 @@ dependencies:
   # SVG rendering for the custom icon set in lib/design/icons.dart
   flutter_svg: ^2.0.10+1
 
+  # App version / build number for the About screen
+  package_info_plus: ^8.0.2
+
   # Utilities
   intl: ^0.20.2
   uuid: ^4.5.1

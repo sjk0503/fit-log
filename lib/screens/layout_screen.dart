@@ -27,6 +27,9 @@ class _LayoutScreenState extends State<LayoutScreen> {
   late List<OotdPhoto> _selectedPhotos;
   LayoutType _layoutType = LayoutType.grid2x2;
   Color _bgColor = const Color(0xFFFAF8F5);
+  TonePreset _tone = TonePreset.none;
+  ExportResolution _resolution = ExportResolution.standard;
+  bool _watermark = true;
   bool _isSaving = false;
 
   static const _bgOptions = <Color>[
@@ -91,6 +94,9 @@ class _LayoutScreenState extends State<LayoutScreen> {
         photos: _selectedPhotos,
         layoutType: _layoutType,
         backgroundColor: _bgColor,
+        resolution: _resolution,
+        tonePreset: _tone,
+        watermark: _watermark,
       );
       await _storageService.saveLayoutImage(layoutImage);
       if (!mounted) return;
@@ -176,39 +182,64 @@ class _LayoutScreenState extends State<LayoutScreen> {
                 ),
               ),
             ),
-            // Layout chooser
+            // Layout chooser (horizontal scroll — 8 options now)
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'LAYOUT',
-                    style: FLType.label.copyWith(
-                        color: t.c.textMuted, letterSpacing: 1.32),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      for (final L in LayoutType.values) ...[
-                        Expanded(
-                          child: _LayoutChip(
-                            type: L,
-                            active: L == _layoutType,
-                            onTap: () => setState(() => _layoutType = L),
-                          ),
-                        ),
-                        if (L != LayoutType.values.last)
-                          const SizedBox(width: 8),
-                      ],
-                    ],
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(22, 20, 0, 10),
+              child: Text(
+                'LAYOUT',
+                style: FLType.label.copyWith(
+                    color: t.c.textMuted, letterSpacing: 1.32),
               ),
             ),
-            // Background colors
+            SizedBox(
+              height: 80,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                itemCount: LayoutType.values.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final L = LayoutType.values[i];
+                  return SizedBox(
+                    width: 72,
+                    child: _LayoutChip(
+                      type: L,
+                      active: L == _layoutType,
+                      onTap: () => setState(() => _layoutType = L),
+                    ),
+                  );
+                },
+              ),
+            ),
+            // Tone preset chooser
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
+              padding: const EdgeInsets.fromLTRB(22, 14, 0, 10),
+              child: Text(
+                'TONE',
+                style: FLType.label.copyWith(
+                    color: t.c.textMuted, letterSpacing: 1.32),
+              ),
+            ),
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                itemCount: TonePreset.values.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final tone = TonePreset.values[i];
+                  return _ToneChip(
+                    tone: tone,
+                    active: tone == _tone,
+                    onTap: () => setState(() => _tone = tone),
+                  );
+                },
+              ),
+            ),
+            // Background colors + watermark / resolution toggles
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 14, 22, 4),
               child: Row(
                 children: [
                   Text(
@@ -221,8 +252,8 @@ class _LayoutScreenState extends State<LayoutScreen> {
                     GestureDetector(
                       onTap: () => setState(() => _bgColor = col),
                       child: Container(
-                        width: 28,
-                        height: 28,
+                        width: 26,
+                        height: 26,
                         decoration: BoxDecoration(
                           color: col,
                           borderRadius:
@@ -236,8 +267,25 @@ class _LayoutScreenState extends State<LayoutScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                   ],
+                  const Spacer(),
+                  _MiniToggle(
+                    label: 'WM',
+                    on: _watermark,
+                    onTap: () => setState(() => _watermark = !_watermark),
+                  ),
+                  const SizedBox(width: 6),
+                  _MiniToggle(
+                    label: _resolution == ExportResolution.high ? '4K' : 'HD',
+                    on: _resolution == ExportResolution.high,
+                    onTap: () => setState(() {
+                      _resolution =
+                          _resolution == ExportResolution.high
+                              ? ExportResolution.standard
+                              : ExportResolution.high;
+                    }),
+                  ),
                 ],
               ),
             ),
@@ -450,6 +498,95 @@ class _MiniLayout extends StatelessWidget {
 }
 
 // ─── Photo picker sheet body ────────────────────────────────────────────
+
+class _ToneChip extends StatelessWidget {
+  final TonePreset tone;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _ToneChip({
+    required this.tone,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FLTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? t.c.accentBrand : t.c.bgElevated,
+          border: Border.all(
+            color: active ? t.c.accentBrand : t.c.borderSubtle,
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(FLRadii.full),
+        ),
+        child: Text(
+          tone.label,
+          style: TextStyle(
+            fontFamily: FLFonts.sans,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: active ? const Color(0xFFFFFFFF) : t.c.textPrimary,
+            letterSpacing: -0.1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniToggle extends StatelessWidget {
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+
+  const _MiniToggle({
+    required this.label,
+    required this.on,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FLTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: on ? t.c.accentBrandFill : t.c.bgElevated,
+          border: Border.all(
+            color: on ? t.c.accentBrand : t.c.borderDefault,
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(FLRadii.full),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: FLFonts.mono,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: on ? t.c.accentBrand : t.c.textSecondary,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _PhotoPickerBody extends StatelessWidget {
   final List<OotdPhoto> photos;

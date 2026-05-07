@@ -9,6 +9,8 @@ import '../services/tutorial_service.dart';
 import 'camera_screen.dart';
 import 'layout_screen.dart';
 import 'photo_viewer_screen.dart';
+import 'settings_screen.dart';
+import 'timelapse_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -155,6 +157,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
+  void _openTimelapse() {
+    final selected = _selectedPhotoIds
+        .map((id) => _photos.firstWhere((p) => p.id == id))
+        .toList();
+    selected.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TimelapseScreen(photos: selected),
+      ),
+    );
+    if (_isSelectionMode) _toggleSelectionMode();
+  }
+
   // ── derived data ───────────────────────────────────────────────────────
 
   ({int total, int thisMonth, int streak}) get _stats {
@@ -265,6 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   isSelecting: _isSelectionMode,
                   selectedCount: _selectedPhotoIds.length,
                   onLanguage: _showLanguageSheet,
+                  onSettings: _openSettings,
                   onCancelSelect: _toggleSelectionMode,
                 ),
                 if (!_isSelectionMode && !isEmpty && !_isLoading)
@@ -272,6 +296,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
                     child: _StatsStrip(stats: _stats),
                   ),
+                // Reserved slot for a future inline banner ad. Stays
+                // invisible while disabled — keeps the layout stable so
+                // turning ads on later does not shift the grid.
+                if (!_isSelectionMode && !isEmpty && !_isLoading)
+                  const _AdSlot(),
                 Expanded(
                   child: _isLoading
                       ? const _LoadingState()
@@ -300,8 +329,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _isSelectionMode
                       ? _SelectionActions(
                           enabled: _selectedPhotoIds.isNotEmpty,
+                          canTimelapse: _selectedPhotoIds.length >= 2,
                           onDelete: _deleteSelectedPhotos,
                           onLayout: _openLayout,
+                          onTimelapse: _openTimelapse,
                         )
                       : _FloatingActions(
                           onShoot: () => _openCamera(),
@@ -331,12 +362,14 @@ class _Header extends StatelessWidget {
   final bool isSelecting;
   final int selectedCount;
   final VoidCallback onLanguage;
+  final VoidCallback onSettings;
   final VoidCallback onCancelSelect;
 
   const _Header({
     required this.isSelecting,
     required this.selectedCount,
     required this.onLanguage,
+    required this.onSettings,
     required this.onCancelSelect,
   });
 
@@ -389,7 +422,7 @@ class _Header extends StatelessWidget {
                 const SizedBox(width: 6),
                 FLIconBtn(
                   icon: FLIcon.settings,
-                  onPressed: () {},
+                  onPressed: onSettings,
                 ),
               ],
             ),
@@ -417,6 +450,45 @@ class _StatsStrip extends StatelessWidget {
         Expanded(
             child: _StatPill(value: '${stats.streak}', label: '연속 일자')),
       ],
+    );
+  }
+}
+
+/// Placeholder for a future inline ad banner.
+///
+/// While ads are disabled this widget renders nothing and takes zero space,
+/// so removing it later does not affect the layout. When the time comes,
+/// this is the only place to swap in a real ad widget — the slot is already
+/// scoped to the right context (free-tier users on the library screen).
+class _AdSlot extends StatelessWidget {
+  const _AdSlot();
+
+  // Toggle this once a real ad implementation is wired in. Keep false in
+  // public builds until the monetization decision is finalized.
+  static const bool _enabled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_enabled) return const SizedBox.shrink();
+    final t = FLTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+      child: Container(
+        height: 64,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: t.c.bgMuted,
+          border: Border.all(color: t.c.borderSubtle, width: 1),
+          borderRadius: BorderRadius.circular(FLRadii.md),
+        ),
+        child: Text(
+          'AD',
+          style: FLType.label.copyWith(
+            color: t.c.textMuted,
+            letterSpacing: 1.32,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -760,14 +832,13 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = FLTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(32, 12, 32, 120),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 128,
-            height: 128,
+            width: 112,
+            height: 112,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: t.c.bgElevated,
@@ -784,7 +855,7 @@ class _EmptyState extends StatelessWidget {
               children: List.generate(4, (i) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: t.c.bgMuted.withValues(alpha: 0.5 + i * 0.15),
+                    color: t.c.bgMuted.withValues(alpha: 0.45 + i * 0.15),
                     borderRadius: BorderRadius.circular(FLRadii.sm),
                   ),
                 );
@@ -793,17 +864,19 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            '첫 OOTD를 남겨보세요',
+            '오늘부터 OOTD 기록',
             style: FLType.titleLg.copyWith(
                 color: t.c.textPrimary, letterSpacing: -0.4),
           ),
           const SizedBox(height: 10),
           Text(
-            '매일 같은 포즈로 기록하면\n옷차림의 변화가 한눈에 보여요',
+            '매일 같은 포즈로 찍어 두면\n며칠만 지나도 변화가 한눈에 보여요',
             textAlign: TextAlign.center,
             style: FLType.bodyMd.copyWith(
                 color: t.c.textSecondary, height: 1.5),
           ),
+          const SizedBox(height: 24),
+          _DayStepsCard(),
           const SizedBox(height: 28),
           FLButton(
             label: '첫 사진 찍기',
@@ -811,6 +884,81 @@ class _EmptyState extends StatelessWidget {
             leadingIcon: FLIcon.camera,
             onPressed: onShoot,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DayStepsCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final t = FLTheme.of(context);
+    final steps = <(String day, String title, String body)>[
+      ('DAY 1', '오늘 OOTD 한 장', '아무 모드에서 자유롭게 첫 사진을 남겨요'),
+      ('DAY 2', '같은 자리에서 분할', '어제 사진을 한쪽에 두고 같은 포즈로 비교'),
+      ('DAY 3+', '쌓이는 변화', '라이브러리에 모이고 그리드로 합쳐 공유'),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: t.c.bgElevated,
+        border: Border.all(color: t.c.borderSubtle, width: 1),
+        borderRadius: BorderRadius.circular(FLRadii.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < steps.length; i++) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 44,
+                  child: Text(
+                    steps[i].$1,
+                    style: TextStyle(
+                      fontFamily: FLFonts.mono,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: t.c.accentBrand,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        steps[i].$2,
+                        style: FLType.bodyMd.copyWith(
+                          color: t.c.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        steps[i].$3,
+                        style: FLType.bodySm.copyWith(
+                            color: t.c.textSecondary, height: 1.45),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (i != steps.length - 1)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  height: 1,
+                  color: t.c.borderSubtle,
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -960,13 +1108,17 @@ class _GhostFloatingBtn extends StatelessWidget {
 
 class _SelectionActions extends StatelessWidget {
   final bool enabled;
+  final bool canTimelapse;
   final VoidCallback onDelete;
   final VoidCallback onLayout;
+  final VoidCallback onTimelapse;
 
   const _SelectionActions({
     required this.enabled,
+    required this.canTimelapse,
     required this.onDelete,
     required this.onLayout,
+    required this.onTimelapse,
   });
 
   @override
@@ -987,11 +1139,21 @@ class _SelectionActions extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: FLButton(
-              label: '레이아웃 합성',
-              kind: FLButtonKind.primary,
+              label: '합성',
+              kind: FLButtonKind.secondary,
               leadingIcon: FLIcon.layers,
               fullWidth: true,
               onPressed: enabled ? onLayout : null,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FLButton(
+              label: '타임랩스',
+              kind: FLButtonKind.primary,
+              leadingIcon: FLIcon.spark,
+              fullWidth: true,
+              onPressed: canTimelapse ? onTimelapse : null,
             ),
           ),
         ],
